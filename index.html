@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>AI 승부예측 시스템</title>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', '맑은 고딕', sans-serif; }
+    body { background-color: #f1f5f9; padding: 14px; color: #1e293b; }
+    .container { max-width: 480px; margin: 0 auto; }
+    
+    .header-box { text-align: center; padding: 10px 0 14px; }
+    .header-title { font-size: 20px; font-weight: 800; color: #1e3a8a; margin-bottom: 4px; }
+    .sub-desc { font-size: 13px; color: #64748b; }
+
+    /* 파일 열기 버튼 */
+    .file-upload-box { background: #ffffff; border: 2px dashed #3b82f6; border-radius: 12px; padding: 14px; text-align: center; margin-bottom: 12px; cursor: pointer; }
+    .file-upload-box:active { background: #eff6ff; }
+    .btn-file-label { display: block; font-size: 15px; font-weight: 700; color: #2563eb; cursor: pointer; }
+    #excelFileInput { display: none; }
+    .status-msg { font-size: 12.5px; color: #059669; font-weight: 700; margin-top: 6px; display: none; }
+
+    /* 섹션 타이틀 바 */
+    .section-bar { display: none; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 0 4px; }
+    .section-title { font-size: 15px; font-weight: 800; color: #0f172a; }
+    .btn-all-toggle { font-size: 12px; font-weight: 700; color: #2563eb; background: none; border: none; cursor: pointer; text-decoration: underline; }
+
+    /* 경기 목록 카드 */
+    .match-list { display: flex; flex-direction: column; gap: 10px; }
+    .match-card { background: #ffffff; border-radius: 12px; padding: 13px 15px; border: 1.5px solid #cbd5e1; box-shadow: 0 2px 5px rgba(0,0,0,0.04); cursor: pointer; }
+    .match-card:active { background: #f8fafc; border-color: #2563eb; transform: scale(0.98); }
+    
+    .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .badge-wrap { display: flex; gap: 4px; align-items: center; }
+    .row-badge { font-size: 11px; font-weight: 800; background: #e2e8f0; color: #0f172a; padding: 2px 6px; border-radius: 4px; }
+    .league-badge { font-size: 11px; font-weight: 700; background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px; }
+    .handi-badge { font-size: 11px; font-weight: 700; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; }
+
+    .teams { font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+
+    /* 배당 및 색칠 표시 */
+    .odds-row { display: flex; gap: 4px; margin-bottom: 4px; }
+    .odd-box { flex: 1; text-align: center; padding: 5px 2px; border-radius: 5px; background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 11.5px; font-weight: 600; color: #475569; }
+    .odd-box.colored { background-color: #9bc2e6 !important; color: #0f172a !important; font-weight: 800 !important; border-color: #2b6cb0 !important; }
+
+    /* 팝업 모달 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; padding: 14px; }
+    .modal-box { background: #ffffff; border-radius: 14px; width: 100%; max-width: 440px; max-height: 90vh; overflow-y: auto; padding: 18px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+    .modal-header { font-size: 16.5px; font-weight: 800; color: #0f172a; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 12px; text-align: center; }
+    .report-text { font-size: 13.5px; line-height: 1.6; color: #1e293b; white-space: pre-wrap; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 14px; }
+    .btn-close { width: 100%; height: 44px; background: #2563eb; color: #ffffff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header-box">
+      <div class="header-title">⚡ AI 승부예측 시스템</div>
+      <div class="sub-desc">엑셀을 불러오면 오늘의 예정 경기가 바로 뜹니다</div>
+    </div>
+
+    <!-- 엑셀 파일 열기 버튼 -->
+    <div class="file-upload-box" onclick="document.getElementById('excelFileInput').click()">
+      <span class="btn-file-label">📁 엑셀 파일 열기 (.xlsx 선택)</span>
+      <input type="file" id="excelFileInput" accept=".xlsx, .xls" onchange="loadExcelFile(event)">
+      <div class="status-msg" id="statusMsg"></div>
+    </div>
+
+    <!-- 섹션 안내 바 -->
+    <div class="section-bar" id="sectionBar">
+      <span class="section-title" id="sectionTitleText">🔥 오늘의 분석 대상 경기</span>
+      <button class="btn-all-toggle" id="btnTogglePast" onclick="togglePastMatches()">최근 30경기 보기</button>
+    </div>
+
+    <!-- 경기 목록 영역 -->
+    <div class="match-list" id="matchListContainer">
+      <div style="text-align:center; padding:40px 10px; color:#94a3b8; font-size:14px;">
+        상단의 [엑셀 파일 열기] 버튼을 눌러<br>작업하신 엑셀 파일(.xlsx)을 선택해 주세요.
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 팝업창 -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+      <div class="modal-header">📊 [AI 승부예측 분석 리포트]</div>
+      <div class="report-text" id="reportContent"></div>
+      <button class="btn-close" onclick="closeModal()">확인 (닫기)</button>
+    </div>
+  </div>
+
+  <script>
+    let pastDB = [];        // K열/S열에 결과가 있는 과거 통계용 22,000건 DB
+    let targetList = [];    // ★ K열/S열 결과가 아직 안 나온 오늘의 대상 경기들!
+    let displayList = [];   // 현재 화면에 보여주고 있는 목록
+    let isShowingPast = false;
+
+    function closeModal() { document.getElementById('modalOverlay').style.display = 'none'; }
+
+    // 엑셀 파싱 (K열, S열 미입력 경기 자동 분리)
+    function loadExcelFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const status = document.getElementById('statusMsg');
+      status.style.display = 'block';
+      status.innerText = "⏳ '일반핸디' 시트 분석 중...";
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          let targetSheetName = "";
+          if (workbook.Sheets["일반핸디"]) {
+            targetSheetName = "일반핸디";
+          } else {
+            targetSheetName = workbook.SheetNames.find(name => name.replace(/\s+/g, '').includes("일반핸디"));
+            if (!targetSheetName) targetSheetName = workbook.SheetNames[0];
+          }
+
+          const targetSheet = workbook.Sheets[targetSheetName];
+          const sheetData = XLSX.utils.sheet_to_json(targetSheet, { header: 1, defval: "" });
+
+          pastDB = [];
+          targetList = [];
+
+          // 19행(배열 인덱스 18)부터 읽기
+          for (let r = 18; r < sheetData.length; r++) {
+            const row = sheetData[r];
+            if (!row || row.length < 10) continue;
+
+            const rowNum = r + 1;                       // 실제 엑셀 행 번호
+            const league = String(row[2] || "").trim(); // C열
+            const home = String(row[3] || "").trim();   // D열
+            const away = String(row[5] || "").trim();   // F열
+
+            const h = parseFloat(row[7]) || 0;          // H열
+            const d = parseFloat(row[8]) || 0;          // I열
+            const a = parseFloat(row[9]) || 0;          // J열
+            const resK = String(row[10] || "").trim();  // ★ K열 (일반 결과)
+
+            const handiO = String(row[14] || "").trim(); // O열 (핸디종류: 1, -1 등)
+            const hp = parseFloat(row[15]) || 0;        // P열
+            const hd = parseFloat(row[16]) || 0;        // Q열
+            const ha = parseFloat(row[17]) || 0;        // R열
+            const resS = String(row[18] || "").trim();  // ★ S열 (핸디 결과)
+
+            const curW = String(row[22] || "").trim();   // W열
+            const curX = String(row[23] || "").trim();   // X열
+            const curY = String(row[24] || "").trim();   // Y열
+            const curZ = String(row[25] || "").trim();   // Z열
+
+            if (h > 0 && a > 0 && (home !== "" || away !== "")) {
+              const matchObj = { rowNum, league, home, away, h, d, a, resK, handiO, hp, hd, ha, resS, curW, curX, curY, curZ };
+
+              // ★ [핵심 분류] K열 또는 S열에 결과가 없으면 ➔ "오늘의 분석 대상 경기!"
+              if (resK === "" || resS === "") {
+                targetList.push(matchObj);
+              }
+
+              // K열이나 S열에 결과가 채워진 것은 ➔ "과거 통계 DB!"
+              if (resK !== "" || resS !== "" || curX !== "" || curZ !== "") {
+                pastDB.push(matchObj);
+              }
+            }
+          }
+
+          status.innerText = `✔ 로드 완료! (과거 통계: ${pastDB.length.toLocaleString()}건 / 분석 대상: ${targetList.length}건)`;
+          document.getElementById('sectionBar').style.display = 'flex';
+
+          // 기본으로 '오늘의 분석 대상 경기' 띄우기
+          isShowingPast = false;
+          if (targetList.length > 0) {
+            displayList = targetList;
+            document.getElementById('sectionTitleText').innerText = `🔥 오늘의 분석 대상 경기 (${targetList.length}건)`;
+          } else {
+            // 만약 모든 경기가 다 끝나서 대상 경기가 없다면 최근 30경기 표시
+            displayList = pastDB.slice(-30).reverse();
+            document.getElementById('sectionTitleText').innerText = `최근 30경기 (결과 완료)`;
+          }
+
+          renderMatchList();
+
+        } catch (err) {
+          alert("오류: " + err.message);
+          status.innerText = "❌ 엑셀 불러오기 실패";
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // 대상 경기 ↔ 최근 경기 토글 전환
+    function togglePastMatches() {
+      const btn = document.getElementById('btnTogglePast');
+      const title = document.getElementById('sectionTitleText');
+
+      if (!isShowingPast) {
+        displayList = pastDB.slice(-30).reverse();
+        title.innerText = "최근 30경기 (과거 복기용)";
+        btn.innerText = "🔥 오늘의 대상 경기 보기";
+        isShowingPast = true;
+      } else {
+        displayList = targetList.length > 0 ? targetList : pastDB.slice(-30).reverse();
+        title.innerText = `🔥 오늘의 분석 대상 경기 (${targetList.length}건)`;
+        btn.innerText = "최근 30경기 보기";
+        isShowingPast = false;
+      }
+      renderMatchList();
+    }
+
+    // 경기 목록 렌더링
+    function renderMatchList() {
+      const container = document.getElementById('matchListContainer');
+      let html = "";
+
+      if (!displayList.length) {
+        container.innerHTML = "<div style='text-align:center;padding:30px;color:#94a3b8;'>표시할 경기가 없습니다.</div>";
+        return;
+      }
+
+      displayList.forEach((m, idx) => {
+        // W, X 일반 색칠 판별
+        let isH = false, isD = false, isA = false;
+        if (m.curW === "정배당") { if (m.h < m.a) isH = true; else isA = true; }
+        else if (m.curW === "역배당") { if (m.h > m.a) isH = true; else isA = true; }
+        else if (m.curW === "무배당") { isD = true; }
+
+        if (m.curX === "승") isH = true;
+        if (m.curX === "무") isD = true;
+        if (m.curX === "패") isA = true;
+
+        // Y, Z 핸디 색칠 판별
+        let isHp = false, isHd = false, isHa = false;
+        if (m.curY === "정배당") { if (m.hp < m.ha) isHp = true; else isHa = true; }
+        else if (m.curY === "역배당") { if (m.hp > m.ha) isHp = true; else isHa = true; }
+        else if (m.curY === "무배당") { isHd = true; }
+
+        if (m.curZ === "승") isHp = true;
+        if (m.curZ === "무") isHd = true;
+        if (m.curZ === "패") isHa = true;
+
+        html += `
+          <div class="match-card" onclick="analyzeMatch(${idx})">
+            <div class="card-top">
+              <div class="badge-wrap">
+                <span class="row-badge">${m.rowNum}행</span>
+                <span class="league-badge">${m.league || '축구'}</span>
+              </div>
+              <span class="handi-badge">[${m.handiO || '0'}] 핸디캡</span>
+            </div>
+            <div class="teams">${m.home} VS ${m.away}</div>
+            
+            <!-- 일반배당 3칸 (색칠 반영) -->
+            <div class="odds-row">
+              <div class="odd-box ${isH ? 'colored' : ''}">홈 ${m.h}</div>
+              <div class="odd-box ${isD ? 'colored' : ''}">무 ${m.d}</div>
+              <div class="odd-box ${isA ? 'colored' : ''}">원정 ${m.a}</div>
+            </div>
+
+            <!-- 핸디배당 3칸 (색칠 반영) -->
+            <div class="odds-row">
+              <div class="odd-box ${isHp ? 'colored' : ''}">핸승 ${m.hp}</div>
+              <div class="odd-box ${isHd ? 'colored' : ''}">핸무 ${m.hd}</div>
+              <div class="odd-box ${isHa ? 'colored' : ''}">핸패 ${m.ha}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // 경기 터치 시 4개 색칠 + O열 분석 팝업 실행
+    function analyzeMatch(idx) {
+      const cur = displayList[idx];
+
+      let pickW_Res = "", pickW_Name = "", pickW_Odd = 0;
+      if (cur.curW === "정배당") {
+        if (cur.h < cur.a) { pickW_Res = "승"; pickW_Name = "홈승"; pickW_Odd = cur.h; }
+        else { pickW_Res = "패"; pickW_Name = "원정승"; pickW_Odd = cur.a; }
+      } else if (cur.curW === "역배당") {
+        if (cur.h > cur.a) { pickW_Res = "승"; pickW_Name = "홈승"; pickW_Odd = cur.h; }
+        else { pickW_Res = "패"; pickW_Name = "원정승"; pickW_Odd = cur.a; }
+      } else {
+        pickW_Res = "무"; pickW_Name = "무승부"; pickW_Odd = cur.d;
+      }
+
+      let pickX_Res = cur.curX, pickX_Name = "", pickX_Odd = 0;
+      if (cur.curX === "승") { pickX_Name = "홈승"; pickX_Odd = cur.h; }
+      else if (cur.curX === "무") { pickX_Name = "무승부"; pickX_Odd = cur.d; }
+      else if (cur.curX === "패") { pickX_Name = "원정승"; pickX_Odd = cur.a; }
+
+      let pickY_Res = "", pickY_Name = "", pickY_Odd = 0;
+      if (cur.curY === "정배당") {
+        if (cur.hp < cur.ha) { pickY_Res = "승"; pickY_Name = "핸디승"; pickY_Odd = cur.hp; }
+        else { pickY_Res = "패"; pickY_Name = "핸디패"; pickY_Odd = cur.ha; }
+      } else if (cur.curY === "역배당") {
+        if (cur.hp > cur.ha) { pickY_Res = "승"; pickY_Name = "핸디승"; pickY_Odd = cur.hp; }
+        else { pickY_Res = "패"; pickY_Name = "핸디패"; pickY_Odd = cur.ha; }
+      } else {
+        pickY_Res = "무"; pickY_Name = "핸디무"; pickY_Odd = cur.hd;
+      }
+
+      let pickZ_Res = cur.curZ, pickZ_Name = "", pickZ_Odd = 0;
+      if (cur.curZ === "승") { pickZ_Name = "핸디승"; pickZ_Odd = cur.hp; }
+      else if (cur.curZ === "무") { pickZ_Name = "핸디무"; pickZ_Odd = cur.hd; }
+      else if (cur.curZ === "패") { pickZ_Name = "핸디패"; pickZ_Odd = cur.ha; }
+
+      // 22,000건 과거 DB에서 매칭
+      let matchCount = 0;
+      let cntW_Hit = 0, cntX_Hit = 0, cntY_Hit = 0, cntZ_Hit = 0;
+      let cntGenTotal = 0, cntHndTotal = 0;
+
+      for (let i = 0; i < pastDB.length; i++) {
+        const past = pastDB[i];
+
+        if (Math.abs(past.h - cur.h) <= 0.25 && Math.abs(past.a - cur.a) <= 0.35) {
+          if ((!cur.handiO || past.handiO === cur.handiO) && (past.curW === cur.curW && past.curY === cur.curY)) {
+            matchCount++;
+
+            const actualX = past.resK || past.curX;
+            const actualZ = past.resS || past.curZ;
+
+            if (actualX === pickW_Res) cntW_Hit++;
+            if (actualX === pickX_Res) cntX_Hit++;
+            if (actualX === pickW_Res || actualX === pickX_Res) cntGenTotal++;
+
+            if (actualZ === pickY_Res) cntY_Hit++;
+            if (actualZ === pickZ_Res) cntZ_Hit++;
+            if (actualZ === pickY_Res || actualZ === pickZ_Res) cntHndTotal++;
+          }
+        }
+      }
+
+      if (matchCount < 5) {
+        alert(`동일 조건(핸디종류 [${cur.handiO}] & 색칠패턴)의 과거 경기 수가 부족합니다. (매칭: ${matchCount}건)`);
+        return;
+      }
+
+      const rW = ((cntW_Hit / matchCount) * 100).toFixed(1);
+      const rX = ((cntX_Hit / matchCount) * 100).toFixed(1);
+      const rY = ((cntY_Hit / matchCount) * 100).toFixed(1);
+      const rZ = ((cntZ_Hit / matchCount) * 100).toFixed(1);
+      const rGen = ((cntGenTotal / matchCount) * 100).toFixed(1);
+      const rHnd = ((cntHndTotal / matchCount) * 100).toFixed(1);
+
+      const genRec = parseFloat(rW) >= parseFloat(rX) ? `[${pickW_Name} (${pickW_Odd}배당)] 추천! (${rW}%)` : `[${pickX_Name} (${pickX_Odd}배당)] 추천! (${rX}%)`;
+      const hndRec = parseFloat(rY) >= parseFloat(rZ) ? `[${pickY_Name} (${pickY_Odd}배당)] 추천! (${rY}%)` : `[${pickZ_Name} (${pickZ_Odd}배당)] 추천! (${rZ}%)`;
+
+      const report = 
+`■ 경기 : ${cur.league} | ${cur.home} vs ${cur.away} (${cur.rowNum}행)
+■ 핸디종류(O열) : [ ${cur.handiO} ] 핸디캡
+■ 일반배당 : [홈] ${cur.h} | [무] ${cur.d} | [원정] ${cur.a}
+■ 핸디배당 : [승] ${cur.hp} | [무] ${cur.hd} | [패] ${cur.ha}
+------------------------------------------
+★ [현재 색칠된 4개 배당]
+  1. 일반 W열 [${cur.curW}] ▶ ${pickW_Name} (${pickW_Odd}배)
+  2. 일반 X열 [${cur.curX}] ▶ ${pickX_Name} (${pickX_Odd}배)
+  3. 핸디 Y열 [${cur.curY}] ▶ ${pickY_Name} (${pickY_Odd}배)
+  4. 핸디 Z열 [${cur.curZ}] ▶ ${pickZ_Name} (${pickZ_Odd}배)
+------------------------------------------
+■ 과거 22,000건 중 [동일 핸디종류+동일 색칠] : ${matchCount}건 분석됨
+------------------------------------------
+[1. 일반경기 색칠 대결: ${pickW_Name}(${pickW_Odd}) VS ${pickX_Name}(${pickX_Odd})]
+  - W [${pickW_Name}] 적중 : ${cntW_Hit}회 (${rW}%)
+  - X [${pickX_Name}] 적중 : ${cntX_Hit}회 (${rX}%)
+  ★ 일반 우세 픽 ▶ ${genRec}
+  (일반 색칠 2개 중 1개 이상 적중 확률: ${rGen}%)
+------------------------------------------
+[2. 핸디경기 색칠 대결: ${pickY_Name}(${pickY_Odd}) VS ${pickZ_Name}(${pickZ_Odd})]
+  - Y [${pickY_Name}] 적중 : ${cntY_Hit}회 (${rY}%)
+  - Z [${pickZ_Name}] 적중 : ${cntZ_Hit}회 (${rZ}%)
+  ★ 핸디 우세 픽 ▶ ${hndRec}
+  (핸디 색칠 2개 중 1개 이상 적중 확률: ${rHnd}%)`;
+
+      document.getElementById('reportContent').innerText = report;
+      document.getElementById('modalOverlay').style.display = 'flex';
+    }
+  </script>
+</body>
+</html>
