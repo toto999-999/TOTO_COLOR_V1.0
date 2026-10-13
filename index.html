@@ -2,7 +2,6 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <!-- ★ [기능 3] 손가락으로 2배, 3배 자유롭게 확대 가능 (user-scalable=yes) -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=4.0, user-scalable=yes">
   <title>AI 승부예측 시스템</title>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -46,12 +45,12 @@
     .odd-box { flex: 1; text-align: center; padding: 5px 2px; border-radius: 5px; background: #f1f5f9; border: 1px solid #e2e8f0; font-size: 11.5px; font-weight: 600; color: #475569; }
     .odd-box.colored { background-color: #9bc2e6 !important; color: #0f172a !important; font-weight: 800 !important; border-color: #2b6cb0 !important; }
 
-    /* ★ [기능 1 & 2] 위치 이동 가능 & 다중 생성 플로팅 팝업창 */
+    /* 드래그 가능한 플로팅 팝업창 */
     .floating-window {
       position: fixed;
-      width: 90%;
-      max-width: 380px;
-      max-height: 80vh;
+      width: 92%;
+      max-width: 390px;
+      max-height: 82vh;
       background: #ffffff;
       border-radius: 12px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.25);
@@ -64,7 +63,6 @@
     }
     @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-    /* 드래그 손잡이 역할을 하는 파란색 헤더 */
     .window-header {
       background: #2563eb;
       color: #ffffff;
@@ -76,7 +74,7 @@
       align-items: center;
       cursor: grab;
       user-select: none;
-      touch-action: none; /* 모바일 터치 드래그 지원 */
+      touch-action: none;
     }
     .window-header:active { cursor: grabbing; background: #1d4ed8; }
     .btn-close-x {
@@ -90,7 +88,6 @@
       line-height: 1;
     }
 
-    /* 팝업 본문 (스크롤 지원) */
     .window-body {
       padding: 12px;
       overflow-y: auto;
@@ -101,7 +98,6 @@
       background: #f8fafc;
     }
 
-    /* 하단 닫기 버튼 */
     .window-footer {
       padding: 8px 12px;
       background: #ffffff;
@@ -155,14 +151,14 @@
     </div>
   </div>
 
-  <!-- 동적 플로팅 팝업들이 생성될 공간 -->
+  <!-- 플로팅 팝업들이 생성될 공간 -->
   <div id="popupContainer"></div>
 
   <script>
     let todayList = [];
     let pastDB = [];
-    let topZIndex = 2000; // 활성화된 창이 맨 위로 오도록 관리
-    let windowCascadeCount = 0; // 창이 겹치지 않게 살짝 어긋나게 띄우기
+    let topZIndex = 2000;
+    let windowCascadeCount = 0;
 
     // 깃허브 data.json 자동 로드
     window.onload = function() {
@@ -249,7 +245,7 @@
       container.innerHTML = html;
     }
 
-    // 경기 터치 시 분석 및 ★ 이동 가능한 독립 팝업 생성
+    // 경기 터치 시 분석 및 팝업 생성
     function analyzeMatch(idx) {
       const cur = todayList[idx];
 
@@ -289,6 +285,9 @@
       let cntW_Hit = 0, cntX_Hit = 0, cntY_Hit = 0, cntZ_Hit = 0;
       let cntGenTotal = 0, cntHndTotal = 0;
 
+      // ★ [신규 집계] 일반 무승부 및 1점차 핸디무 카운트
+      let cntDraw = 0, cntHdDraw = 0;
+
       for (let i = 0; i < pastDB.length; i++) {
         const row = pastDB[i];
         const pastH = row[0], pastA = row[1], pastO = row[2], pastW = row[3], pastY = row[4];
@@ -297,12 +296,19 @@
         if (Math.abs(pastH - cur.h) <= 0.25 && Math.abs(pastA - cur.a) <= 0.35) {
           if ((!cur.o || pastO === cur.o) && (pastW === cur.w && pastY === cur.y)) {
             matchCount++;
+
+            // 일반/핸디 색칠 적중 판별
             if (actualX === pickW_Res) cntW_Hit++;
             if (actualX === pickX_Res) cntX_Hit++;
             if (actualX === pickW_Res || actualX === pickX_Res) cntGenTotal++;
+
             if (actualZ === pickY_Res) cntY_Hit++;
             if (actualZ === pickZ_Res) cntZ_Hit++;
             if (actualZ === pickY_Res || actualZ === pickZ_Res) cntHndTotal++;
+
+            // ★ 일반 무승부 & 핸디무 집계
+            if (actualX === "무") cntDraw++;
+            if (actualZ === "무") cntHdDraw++;
           }
         }
       }
@@ -319,8 +325,20 @@
       const rGen = ((cntGenTotal / matchCount) * 100).toFixed(1);
       const rHnd = ((cntHndTotal / matchCount) * 100).toFixed(1);
 
+      // ★ 무승부 & 핸디무 확률 계산
+      const rateDraw = ((cntDraw / matchCount) * 100).toFixed(1);
+      const rateHdDraw = ((cntHdDraw / matchCount) * 100).toFixed(1);
+
       const genRec = parseFloat(rW) >= parseFloat(rX) ? `[${pickW_Name} (${pickW_Odd}배당)] 추천! (${rW}%)` : `[${pickX_Name} (${pickX_Odd}배당)] 추천! (${rX}%)`;
       const hndRec = parseFloat(rY) >= parseFloat(rZ) ? `[${pickY_Name} (${pickY_Odd}배당)] 추천! (${rY}%)` : `[${pickZ_Name} (${pickZ_Odd}배당)] 추천! (${rZ}%)`;
+
+      // 고배당 추천 멘트 결정
+      let highYieldRec = "";
+      if (parseFloat(rateHdDraw) >= parseFloat(rateDraw)) {
+        highYieldRec = `[핸디무승부 (${cur.hd}배당)] 유력! (${rateHdDraw}%)`;
+      } else {
+        highYieldRec = `[일반 무승부 (${cur.d}배당)] 유력! (${rateDraw}%)`;
+      }
 
       const reportText = 
 `■ 경기 : ${cur.l} | ${cur.hT} vs ${cur.aT} (${cur.row}행)
@@ -346,20 +364,22 @@
   - Y [${pickY_Name}] 적중 : ${cntY_Hit}회 (${rY}%)
   - Z [${pickZ_Name}] 적중 : ${cntZ_Hit}회 (${rZ}%)
   ★ 핸디 우세 ▶ ${hndRec}
-  (핸디 색칠 중 1개 이상 적중률: ${rHnd}%)`;
+  (핸디 색칠 중 1개 이상 적중률: ${rHnd}%)
+------------------------------------------
+💰 [3. 고배당 저격: 무승부 & 핸디무 확률]
+  - 일반 무승부 [무 (${cur.d}배)] : ${rateDraw}% (${cntDraw}회)
+  - 1점차 핸디무 [핸무 (${cur.hd}배)] : ${rateHdDraw}% (${cntHdDraw}회)
+  ★ 고배당 노림수 ▶ ${highYieldRec}`;
 
-      // ★ 독립된 이동 가능 팝업 창 생성
       createDraggableWindow(`${cur.hT} vs ${cur.aT}`, reportText);
     }
 
-    // ★ [기능 1 & 2] 이동 가능하고 다중 유지가 되는 독립 팝업 생성 함수
     function createDraggableWindow(title, content) {
       const container = document.getElementById('popupContainer');
       const winId = 'win_' + Date.now();
       topZIndex++;
       windowCascadeCount = (windowCascadeCount + 1) % 5;
 
-      // 겹치지 않게 살짝씩 어긋난 위치
       const initTop = 80 + (windowCascadeCount * 25);
       const initLeft = 16 + (windowCascadeCount * 10);
 
@@ -381,25 +401,20 @@
         </div>
       `;
 
-      // 창 터치 시 맨 앞으로 오도록 처리
       winEl.addEventListener('pointerdown', () => {
         topZIndex++;
         winEl.style.zIndex = topZIndex;
       });
 
       container.appendChild(winEl);
-
-      // 헤더 드래그 기능 연결
       makeDraggable(winEl, document.getElementById(`header_${winId}`));
     }
 
-    // 창 개별 닫기
     function closeWindow(winId) {
       const el = document.getElementById(winId);
       if (el) el.remove();
     }
 
-    // ★ [기능 1] 터치 및 마우스 드래그 이동 함수
     function makeDraggable(element, handle) {
       let isDragging = false;
       let startX, startY, initialLeft, initialTop;
@@ -438,7 +453,6 @@
       handle.addEventListener('pointerdown', onPointerDown);
     }
 
-    // 수동 엑셀 열기
     function loadExcelFileManual(e) {
       const file = e.target.files[0];
       if (!file) return;
