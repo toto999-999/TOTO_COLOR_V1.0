@@ -50,7 +50,7 @@
       position: fixed;
       width: 92%;
       max-width: 390px;
-      max-height: 82vh;
+      max-height: 84vh;
       background: #ffffff;
       border-radius: 12px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.25);
@@ -160,7 +160,6 @@
     let topZIndex = 2000;
     let windowCascadeCount = 0;
 
-    // 깃허브 data.json 자동 로드
     window.onload = function() {
       fetch('data.json?t=' + Date.now())
         .then(response => {
@@ -187,7 +186,6 @@
         });
     };
 
-    // 경기 목록 렌더링
     function renderMatchList() {
       const container = document.getElementById('matchListContainer');
       let html = "";
@@ -245,7 +243,6 @@
       container.innerHTML = html;
     }
 
-    // 경기 터치 시 분석 및 팝업 생성
     function analyzeMatch(idx) {
       const cur = todayList[idx];
 
@@ -284,9 +281,8 @@
       let matchCount = 0;
       let cntW_Hit = 0, cntX_Hit = 0, cntY_Hit = 0, cntZ_Hit = 0;
       let cntGenTotal = 0, cntHndTotal = 0;
-
-      // ★ [신규 집계] 일반 무승부 및 1점차 핸디무 카운트
       let cntDraw = 0, cntHdDraw = 0;
+      let cntHomeWin = 0, cntAwayWin = 0;
 
       for (let i = 0; i < pastDB.length; i++) {
         const row = pastDB[i];
@@ -297,7 +293,6 @@
           if ((!cur.o || pastO === cur.o) && (pastW === cur.w && pastY === cur.y)) {
             matchCount++;
 
-            // 일반/핸디 색칠 적중 판별
             if (actualX === pickW_Res) cntW_Hit++;
             if (actualX === pickX_Res) cntX_Hit++;
             if (actualX === pickW_Res || actualX === pickX_Res) cntGenTotal++;
@@ -306,8 +301,9 @@
             if (actualZ === pickZ_Res) cntZ_Hit++;
             if (actualZ === pickY_Res || actualZ === pickZ_Res) cntHndTotal++;
 
-            // ★ 일반 무승부 & 핸디무 집계
             if (actualX === "무") cntDraw++;
+            if (actualX === "승") cntHomeWin++;
+            if (actualX === "패") cntAwayWin++;
             if (actualZ === "무") cntHdDraw++;
           }
         }
@@ -325,19 +321,49 @@
       const rGen = ((cntGenTotal / matchCount) * 100).toFixed(1);
       const rHnd = ((cntHndTotal / matchCount) * 100).toFixed(1);
 
-      // ★ 무승부 & 핸디무 확률 계산
       const rateDraw = ((cntDraw / matchCount) * 100).toFixed(1);
       const rateHdDraw = ((cntHdDraw / matchCount) * 100).toFixed(1);
 
       const genRec = parseFloat(rW) >= parseFloat(rX) ? `[${pickW_Name} (${pickW_Odd}배당)] 추천! (${rW}%)` : `[${pickX_Name} (${pickX_Odd}배당)] 추천! (${rX}%)`;
       const hndRec = parseFloat(rY) >= parseFloat(rZ) ? `[${pickY_Name} (${pickY_Odd}배당)] 추천! (${rY}%)` : `[${pickZ_Name} (${pickZ_Odd}배당)] 추천! (${rZ}%)`;
 
-      // 고배당 추천 멘트 결정
       let highYieldRec = "";
       if (parseFloat(rateHdDraw) >= parseFloat(rateDraw)) {
         highYieldRec = `[핸디무승부 (${cur.hd}배당)] 유력! (${rateHdDraw}%)`;
       } else {
         highYieldRec = `[일반 무승부 (${cur.d}배당)] 유력! (${rateDraw}%)`;
+      }
+
+      // ★ [신규 알고리즘] 오즈메이커 함정 배당 판별기
+      const isHomeFav = (cur.h <= cur.a);
+      const favTeam = isHomeFav ? cur.hT : cur.aT;
+      const favOdd = isHomeFav ? cur.h : cur.a;
+      const favActualRate = isHomeFav ? ((cntHomeWin / matchCount) * 100).toFixed(1) : ((cntAwayWin / matchCount) * 100).toFixed(1);
+      const impliedProb = ((1 / favOdd) * 100).toFixed(1);
+      const diff = (parseFloat(impliedProb) - parseFloat(favActualRate)).toFixed(1);
+      const oppHnd = isHomeFav ? `원정 플핸 (${cur.ha}배)` : `홈 플핸 (${cur.hp}배)`;
+
+      let trapSection = "";
+      if (parseFloat(diff) >= 5.0) {
+        trapSection = 
+`🚨 [4. 오즈메이커 함정 배당 경고!]
+  - 배당상 요구 승률 : ${impliedProb}% (${favOdd}배)
+  - AI 빅데이터 승률 : ${favActualRate}% (과거 통계)
+  👉 [위험 경고] 오즈메이커가 승률을 +${diff}% 과대평가함!
+  👉 ${favTeam} 정배 위험! 무승부(${cur.d}배) 또는 ${oppHnd} 추천!`;
+      } else if (parseFloat(diff) <= -3.0) {
+        trapSection = 
+`💎 [4. 오즈메이커 가치 배당 (Value Bet)!]
+  - 배당상 요구 승률 : ${impliedProb}% (${favOdd}배)
+  - AI 빅데이터 승률 : ${favActualRate}% (과거 통계)
+  👉 [꿀배당 포착] 실제 승률이 요구치보다 +${Math.abs(diff)}% 더 높음!
+  👉 배당 대비 가치 우수! ${favTeam} 승리 적극 추천!`;
+      } else {
+        trapSection = 
+`⚖️ [4. 오즈메이커 배당 가치 평가]
+  - 배당상 요구 승률 : ${impliedProb}% (${favOdd}배)
+  - AI 빅데이터 승률 : ${favActualRate}% (과거 통계)
+  👉 배당과 실제 승률이 균형을 이루는 적정 배당 경기`;
       }
 
       const reportText = 
@@ -369,7 +395,9 @@
 💰 [3. 고배당 저격: 무승부 & 핸디무 확률]
   - 일반 무승부 [무 (${cur.d}배)] : ${rateDraw}% (${cntDraw}회)
   - 1점차 핸디무 [핸무 (${cur.hd}배)] : ${rateHdDraw}% (${cntHdDraw}회)
-  ★ 고배당 노림수 ▶ ${highYieldRec}`;
+  ★ 고배당 노림수 ▶ ${highYieldRec}
+------------------------------------------
+${trapSection}`;
 
       createDraggableWindow(`${cur.hT} vs ${cur.aT}`, reportText);
     }
