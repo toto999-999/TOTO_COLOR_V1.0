@@ -125,25 +125,27 @@
     .news-highlight { color: #dc2626; font-weight: 700; }
     .news-loading { font-size: 12px; color: #64748b; padding: 6px 0; }
     
+    /* 플래시스코어 제거 후 2개 버튼 50% 균등 분할 */
     .news-btn-row {
       display: flex;
-      gap: 6px;
-      margin-top: 8px;
+      gap: 8px;
+      margin-top: 10px;
     }
     .btn-news-link {
       flex: 1;
-      height: 30px;
-      font-size: 11.5px;
+      height: 34px;
+      font-size: 12.5px;
       font-weight: 700;
-      border-radius: 5px;
+      border-radius: 6px;
       border: 1px solid #cbd5e1;
       background: #f1f5f9;
-      color: #334155;
+      color: #1e293b;
       text-align: center;
-      line-height: 28px;
+      line-height: 32px;
       text-decoration: none;
+      display: block;
     }
-    .btn-news-link:hover { background: #e2e8f0; }
+    .btn-news-link:active { background: #e2e8f0; }
 
     .window-footer {
       padding: 8px 12px;
@@ -339,15 +341,12 @@
         if (Math.abs(pastH - cur.h) <= 0.25 && Math.abs(pastA - cur.a) <= 0.35) {
           if ((!cur.o || pastO === cur.o) && (pastW === cur.w && pastY === cur.y)) {
             matchCount++;
-
             if (actualX === pickW_Res) cntW_Hit++;
             if (actualX === pickX_Res) cntX_Hit++;
             if (actualX === pickW_Res || actualX === pickX_Res) cntGenTotal++;
-
             if (actualZ === pickY_Res) cntY_Hit++;
             if (actualZ === pickZ_Res) cntZ_Hit++;
             if (actualZ === pickY_Res || actualZ === pickZ_Res) cntHndTotal++;
-
             if (actualX === "무") cntDraw++;
             if (actualX === "승") cntHomeWin++;
             if (actualX === "패") cntAwayWin++;
@@ -445,11 +444,10 @@
 ------------------------------------------
 ${trapSection}`;
 
-      // 팝업창 생성 및 실시간 뉴스 로드
       createDraggableWindow(`${cur.hT} vs ${cur.aT}`, reportText, cur.hT, cur.aT);
     }
 
-    // ★ [실시간 뉴스 자동 크롤링 연동 팝업 생성]
+    // 플로팅 팝업 생성
     function createDraggableWindow(title, statText, homeTeam, awayTeam) {
       const container = document.getElementById('popupContainer');
       const winId = 'win_' + Date.now();
@@ -466,10 +464,9 @@ ${trapSection}`;
       winEl.style.left = initLeft + 'px';
       winEl.style.zIndex = topZIndex;
 
-      // 네이버 및 구글 검색 링크 생성
+      // 네이버 및 구글 검색 링크
       const naverSearchUrl = `https://search.naver.com/search.naver?query=${encodeURIComponent(homeTeam + " " + awayTeam + " 축구")}`;
       const googleGlobalUrl = `https://www.google.com/search?q=${encodeURIComponent(homeTeam + " " + awayTeam + " injuries lineup team news")}`;
-      const flashscoreUrl = `https://www.flashscore.co.kr/search/?q=${encodeURIComponent(homeTeam)}`;
 
       winEl.innerHTML = `
         <div class="window-header" id="header_${winId}">
@@ -479,14 +476,13 @@ ${trapSection}`;
         <div class="window-body">
           <div class="report-stat-text">${statText}</div>
           
-          <!-- ★ [실시간 경기 뉴스 연동 박스] -->
+          <!-- 뉴스 연동 박스 (2개 버튼으로 깔끔 구성) -->
           <div class="news-box">
             <div class="news-title-header">📰 [5. 해당 경기 실시간 뉴스 & 결장 이슈]</div>
             <div id="newsList_${winId}" class="news-loading">⏳ 경기 관련 최신 뉴스를 불러오는 중...</div>
             <div class="news-btn-row">
               <a href="${naverSearchUrl}" target="_blank" class="btn-news-link">🔍 네이버 뉴스</a>
               <a href="${googleGlobalUrl}" target="_blank" class="btn-news-link">🌐 구글 현지뉴스</a>
-              <a href="${flashscoreUrl}" target="_blank" class="btn-news-link">📋 플래시스코어</a>
             </div>
           </div>
         </div>
@@ -503,11 +499,10 @@ ${trapSection}`;
       container.appendChild(winEl);
       makeDraggable(winEl, document.getElementById(`header_${winId}`));
 
-      // 구글 뉴스 RSS 실시간 비동기 로드
+      // 구글 뉴스 실시간 RSS 가져오기
       fetchMatchNews(homeTeam, awayTeam, `newsList_${winId}`);
     }
 
-    // ★ 구글 실시간 뉴스 RSS 검색 엔진
     function fetchMatchNews(home, away, containerId) {
       const query = `${home} ${away}`;
       const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
@@ -529,14 +524,13 @@ ${trapSection}`;
           }
 
           let newsHtml = "";
-          const maxCount = Math.min(items.length, 3); // 상위 3개 헤드라인 표시
+          const maxCount = Math.min(items.length, 3);
           const keyWords = ["결장", "부상", "로테이션", "2군", "선발", "명단", "우승", "완패", "대승", "휴식"];
 
           for (let i = 0; i < maxCount; i++) {
             let title = items[i].querySelector("title").textContent;
             let link = items[i].querySelector("link").textContent;
 
-            // 핵심 키워드 빨간색 강조
             keyWords.forEach(kw => {
               title = title.replaceAll(kw, `<span class="news-highlight">${kw}</span>`);
             });
